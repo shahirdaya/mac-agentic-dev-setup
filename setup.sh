@@ -476,6 +476,26 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 
 ###############################################################################
+# Jupyter
+###############################################################################
+
+info "Installing Jupyter"
+
+if uv tool list | grep -Eq '^jupyterlab([[:space:]]|$)'; then
+    success "JupyterLab already installed"
+else
+    echo "Installing JupyterLab and Jupyter Notebook..."
+    uv tool install \
+        --python "$(mise which python)" \
+        jupyterlab \
+        --with notebook \
+        --with pip \
+        --with-executables-from jupyter-core \
+        --with-executables-from notebook
+    success "Jupyter installed"
+fi
+
+###############################################################################
 # OrbStack
 ###############################################################################
 
@@ -570,6 +590,7 @@ TOOLS=(
     node
     npm
     python
+    jupyter
     java
     go
 
@@ -606,6 +627,7 @@ echo
 node --version 2>/dev/null || true
 npm --version 2>/dev/null || true
 python --version 2>/dev/null || true
+jupyter --version 2>/dev/null || true
 java --version 2>/dev/null || true
 go version 2>/dev/null || true
 uv --version 2>/dev/null || true
@@ -705,6 +727,8 @@ echo "    Python 3.13"
 echo "    Java 21"
 echo "    Go"
 echo "    uv"
+echo "    JupyterLab"
+echo "    Jupyter Notebook"
 echo
 echo "  Editors"
 echo "    Visual Studio Code"

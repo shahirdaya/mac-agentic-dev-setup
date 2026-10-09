@@ -2,7 +2,7 @@
 
 A practical guide to preparing a Mac for terminal-based development, AI coding tools, multiple language runtimes, containers, and local Kubernetes.
 
-The setup described here combines Homebrew, Ghostty and zsh, Starship, tmux, direnv, Git and GitHub CLI, mise, uv, Corepack, VS Code, Cursor, ChatGPT, Claude Code, Codex CLI, OrbStack, and development quality tools.
+The setup described here combines Homebrew, Ghostty and zsh, Starship, tmux, direnv, Git and GitHub CLI, mise, uv, Jupyter, Corepack, VS Code, Cursor, ChatGPT, Claude Code, Codex CLI, OrbStack, and development quality tools.
 
 **Current prerequisite:** The script uses a Bash associative array but does not install or require-check modern Bash. macOS’s bundled Bash 3.2 cannot run that section. Use the modern-Bash quick start below. The script is interactive and does not provide automatic rollback or configuration backups.
 
@@ -137,6 +137,7 @@ The following inventory reflects the supplied script. Homebrew can install addit
 | Source control | `git`, `gh` | Git and GitHub CLI | Identity, authentication, chosen credential method |
 | Runtime management | `mise` | Per-user runtime selection | Node LTS, Python 3.13, Java 21, Go |
 | Python tooling | `uv` | Python dependency, environment, and tool management | Choose the intended interpreter for each environment |
+| Notebooks | uv tool `jupyterlab`, with `notebook` and `pip` | JupyterLab, classic Notebook, and pip inside that isolated tool environment | Launch from a fresh terminal; project kernels stay separate |
 | JS package managers | Corepack | Yarn/pnpm dispatch and version selection | Enable shims; install Corepack separately when absent |
 | Editors | `visual-studio-code`, `cursor` casks | GUI development environments | Verify `code` and `cursor` commands; sign in as needed |
 | Chat application | `chatgpt` cask | ChatGPT desktop | Sign in and review permissions |
@@ -189,13 +190,15 @@ The script uses `set -Eeuo pipefail` and proceeds in this order:
 10. Run `corepack enable` only if the command exists; otherwise warn. The script does not install missing Corepack or explicitly select pnpm/Yarn versions.
 11. Write the Git preferences below; optionally prompt for identity; append six global ignore patterns; set five Git aliases.
 12. Install Codex and Claude Code via native installers only when their commands are absent from the current PATH. An existing installation from another manager is kept.
-13. Add `~/.local/bin` to this process's PATH. Attempt to launch OrbStack; launch failure is tolerated.
-14. Check GitHub authentication; prompt to run `gh auth login` if needed.
-15. Run Homebrew diagnostics, command-path checks, runtime version reporting, and Claude diagnostics.
-16. Poll `docker info` up to 15 times, sleeping one second after unsuccessful attempts. Individual calls can make total waiting time longer. If Docker is reachable, run `docker run --rm hello-world`.
-17. Print Git/GitHub status and the final setup summary.
+13. Add `~/.local/bin` to this process's PATH.
+14. If `uv tool list` does not already show `jupyterlab`, install that tool with the mise-selected Python, including the `notebook` and `pip` packages, and link executables from `jupyter-core` and `notebook`. An existing `jupyterlab` tool is left in place without an upgrade.
+15. Attempt to launch OrbStack; launch failure is tolerated.
+16. Check GitHub authentication; prompt to run `gh auth login` if needed.
+17. Run Homebrew diagnostics, command-path checks (including `jupyter`), runtime version reporting, and Claude diagnostics.
+18. Poll `docker info` up to 15 times, sleeping one second after unsuccessful attempts. Individual calls can make total waiting time longer. If Docker is reachable, run `docker run --rm hello-world`.
+19. Print Git/GitHub status and the final setup summary.
 
-It does not configure Ghostty appearance, tmux bindings, a Starship theme, editor extensions, a default login shell, standalone Docker formulae, Kubernetes clusters, repository hooks, or application account logins other than the optional GitHub flow. It does not create configuration backups. The script accepts no implemented dry-run, unattended, rollback, or uninstall options; passing an invented flag will not make it safe or noninteractive.
+It does not configure Ghostty appearance, tmux bindings, a Starship theme, editor extensions, a default login shell, standalone Docker formulae, Kubernetes clusters, repository hooks, or application account logins other than the optional GitHub flow. It does not start a Jupyter server, install notebook extensions, or register project-specific kernels. It does not create configuration backups. The script accepts no implemented dry-run, unattended, rollback, or uninstall options; passing an invented flag will not make it safe or noninteractive.
 
 ### Configuration locations to inspect
 
@@ -453,6 +456,31 @@ printf 'Temporary verification environment: %s\n' "$uv_check_dir"
 
 Remove that specific temporary directory when finished. Do not use `sudo pip` or install project dependencies into Apple's Python. See [uv's Python management guide](https://docs.astral.sh/uv/guides/install-python/).
 
+### Jupyter
+
+After Python 3.13 is selected and `~/.local/bin` is on PATH, the script installs a workstation Jupyter tool when `uv tool list` does not already show `jupyterlab`:
+
+```sh
+uv tool install --python "$(mise which python)" jupyterlab --with notebook --with pip \
+  --with-executables-from jupyter-core \
+  --with-executables-from notebook
+```
+
+This matches [JupyterLab's uv install](https://jupyterlab.readthedocs.io/en/latest/getting_started/installation.html) and adds the classic Notebook interface in the same isolated environment. The interpreter is the mise-managed Python. `--with pip` puts pip in that environment so a notebook's `%pip` magic can run. uv only links executables from the named package unless told otherwise, so `--with-executables-from` is what places `jupyter` and `jupyter-notebook` on PATH. The script does not upgrade an existing `jupyterlab` tool.
+
+In a fresh terminal:
+
+```sh
+command -v jupyter
+jupyter --version
+jupyter lab
+jupyter notebook
+```
+
+`jupyter lab` opens JupyterLab. `jupyter notebook` opens the classic Notebook interface. Either command starts a local server and a browser. Stop the server from that terminal with Ctrl-C. Review Jupyter's token and access settings before exposing a server beyond this Mac.
+
+Project packages belong in a project environment, not in this global tool environment. For a repository, follow [Using uv with Jupyter](https://docs.astral.sh/uv/guides/integration/jupyter/). Upgrade the workstation tool later with `uv tool upgrade jupyterlab`, which keeps the extras recorded at install time.
+
 ### Node and Corepack
 
 The script enables Corepack if found, but only warns if it is absent. The installation command below is a manual completion step in that case.
@@ -701,7 +729,7 @@ Expected: developer tools resolve, Homebrew matches the intended architecture, c
 ### 2. Executable availability and provenance
 
 ```sh
-for tool in brew git gh jq yq rg fd fzf bat eza tree wget curl htop starship tmux direnv mise uv node npm corepack python java javac go code cursor claude codex docker kubectl helm k9s kind shellcheck shfmt pre-commit gitleaks actionlint hadolint; do
+for tool in brew git gh jq yq rg fd fzf bat eza tree wget curl htop starship tmux direnv mise uv node npm corepack python jupyter java javac go code cursor claude codex docker kubectl helm k9s kind shellcheck shfmt pre-commit gitleaks actionlint hadolint; do
   if command -v "$tool" >/dev/null 2>&1; then
     printf '%-14s %s\n' "$tool" "$(command -v "$tool")"
   else
@@ -772,12 +800,16 @@ corepack --version
 python --version
 python -c 'import sys; print(sys.executable); print(sys.version_info[:2])'
 uv --version
+command -v jupyter
+jupyter --version
+jupyter lab --version
+jupyter notebook --version
 java -version
 javac -version
 go version
 ```
 
-Expected: the selected Node LTS release, Python `(3, 13)`, Java/Javac 21, and a working Go installation. Run `pnpm --version` and `yarn --version` separately if you want to test Corepack downloads. Test uv's environment creation using the temporary-directory procedure above.
+Expected: the selected Node LTS release, Python `(3, 13)`, Java/Javac 21, and a working Go installation. `jupyter --version` should list both `jupyterlab` and `notebook`. The version commands above do not start a server. Run `pnpm --version` and `yarn --version` separately if you want to test Corepack downloads. Test uv's environment creation using the temporary-directory procedure above.
 
 ### 6. Editors and coding CLIs
 
@@ -865,6 +897,7 @@ If it already has Git history, also run `gitleaks git --redact .`. Run pre-commi
 - [ ] Each desktop app launches; unmanaged apps are recorded rather than mistaken for adopted casks.
 - [ ] mise selects Node LTS, Python 3.13, Java 21, and Go.
 - [ ] uv can create an environment with the intended Python; Corepack can launch the chosen JS package manager.
+- [ ] `jupyter` resolves from `~/.local/bin`, and `jupyter --version` reports JupyterLab and Notebook.
 - [ ] Git identity, GitHub authentication, and global exclusions are verified.
 - [ ] Editor launchers and AI CLIs work; needed account sign-ins are complete.
 - [ ] Docker reaches OrbStack and runs the test image.
@@ -898,6 +931,7 @@ The rest of this script behaves as follows:
 | Git identity | Prompt appears again; default No retains values |
 | Global exclusions | Six exact patterns are appended if missing; exclusions-file selection is reset |
 | Codex / Claude | Any command already on PATH causes installation to be skipped |
+| Jupyter | An existing `jupyterlab` uv tool is skipped; a missing tool is installed against the current mise Python |
 | Cursor CLI | Availability check repeats; available cask is installed only if unregistered |
 | OrbStack | Launch is attempted again |
 | GitHub | Authentication is checked; interactive login is offered only if check fails |
@@ -937,6 +971,14 @@ Inspect `mise ls` and `mise current` first. Deliberately reselect the desired ru
 Check `mise upgrade --help` for the installed version before using an upgrade workflow. Keep older runtime versions until dependent work has been tested. Existing Python virtual environments do not automatically switch interpreter, and npm-global tools may be tied to an older Node installation.
 
 If uv was installed by Homebrew, update it through Homebrew. Avoid mixing that with a standalone uv self-update workflow.
+
+Jupyter is a uv tool, not a Homebrew formula. Upgrade it with `uv tool upgrade jupyterlab`. That keeps the `notebook` and `pip` extras recorded at install time. If an older install is missing those extras, reinstall explicitly:
+
+```sh
+uv tool install --python "$(mise which python)" --force jupyterlab --with notebook --with pip \
+  --with-executables-from jupyter-core \
+  --with-executables-from notebook
+```
 
 ### Native coding tools
 
@@ -1041,6 +1083,7 @@ Work component by component:
 6. Remove only the setup-related shell hooks or settings you can identify. Keep unrelated user configuration.
 7. Restore specific Git settings from your backup where appropriate. Do not delete all of `.gitconfig` to remove one setting.
 8. Remove individual mise runtimes only after checking for dependent work. Keep system runtimes and Apple tools intact.
+9. Remove the workstation Jupyter tool with `uv tool uninstall jupyterlab`. That deletes uv's isolated tool environment and its launchers. It does not remove mise's Python.
 
 An app successfully adopted into Homebrew is now managed by Homebrew, even if it was originally installed manually; uninstalling that cask can remove the app bundle. App preferences and data may remain. Broad `--zap` cleanup can remove additional data and should be reviewed carefully.
 
@@ -1163,6 +1206,17 @@ If mise reports an untrusted configuration, inspect the file before trusting it.
 ### Python reports an externally managed environment
 
 Use a virtual environment or uv rather than installing into the protected interpreter. Select the intended mise Python explicitly when creating the environment. Do not use `sudo pip` or bypass interpreter protections to make a workstation setup check pass.
+
+### `jupyter: command not found`
+
+The script installs Jupyter into `~/.local/bin` with uv. Open a new terminal so the PATH line in `.zshrc` is loaded, then check:
+
+```sh
+command -v jupyter
+uv tool list
+```
+
+If `jupyterlab` is listed but `jupyter` is missing, confirm `~/.local/bin` is on PATH. If the tool is absent, install it with the command in [Jupyter](#jupyter). Do not install Jupyter into Apple's Python with `sudo pip`.
 
 ### Corepack missing, permission denied, or package-manager signature errors
 
